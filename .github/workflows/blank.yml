@@ -1,0 +1,40 @@
+name: 自动优选 Cloudflare IP
+
+on:
+  schedule:
+    - cron: '0 0 * * 0'   # 每周日 UTC 0 点自动运行
+  workflow_dispatch:      # 允许手动触发测试
+
+jobs:
+  run-speedtest:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 检出仓库
+        uses: actions/checkout@v4
+
+      - name: 下载 CloudflareST
+        run: |
+          wget https://github.com/XIU2/CloudflareSpeedTest/releases/download/v2.2.4/CloudflareST_linux_amd64.tar.gz
+          tar -xzf CloudflareST_linux_amd64.tar.gz
+          chmod +x CloudflareST
+
+      - name: 下载 IP 段文件
+        run: |
+          curl -sL https://raw.githubusercontent.com/cmliu/WorkerVless2sub/main/addressesapi.txt -o ip.txt
+
+      - name: 运行 CloudflareSpeedTest
+        run: |
+          ./CloudflareST -f ip.txt -n 200 -tl 300 -dn 10 -url https://speed.cloudflare.com/__down?bytes=100000000
+
+      - name: 生成 addressesapi.txt
+        run: |
+          awk -F, 'NR>1{print $1}' result.csv > addressesapi.txt
+
+      - name: 提交并推送更新
+        run: |
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          git add addressesapi.txt
+          git commit -m "更新优选 IP $(date +'%Y-%m-%d %H:%M:%S')" || exit 0
+          git push
